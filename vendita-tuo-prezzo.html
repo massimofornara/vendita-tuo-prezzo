@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Off-Ramp Token Personalizzato - Prezzo Deciso da Te</title>
+  <meta name="description" content="Vendi il tuo token personalizzato (es. 0xeF3F...) al PREZZO CHE DECIDI TU - Mt Pelerin Bridge replica" />
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    :root {
+      --primary: #3b82f6;
+      --dark: #0f172a;
+    }
+    body { margin:0; font-family:'Inter',sans-serif; background:#f8fafc; color:#1e293b; }
+    .container { max-width:520px; margin:40px auto; background:white; border-radius:20px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); overflow:hidden; }
+    .header { background:linear-gradient(135deg,var(--dark),#1e293b); color:white; padding:32px 24px; text-align:center; }
+    .header h1 { margin:0; font-size:28px; font-weight:700; }
+    .header p { margin:10px 0 0; opacity:0.9; font-size:15px; }
+    .body { padding:32px 24px; }
+    label { display:block; margin-bottom:8px; font-weight:600; font-size:14px; color:#374151; }
+    input, select {
+      width:100%; padding:14px 16px; border:1px solid #d1d5db; border-radius:12px; font-size:16px;
+      margin-bottom:20px; transition:border 0.2s;
+    }
+    input:focus, select:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
+    .highlight { background:#f0f9ff; border:2px solid #0ea5e9; padding:16px; border-radius:12px; text-align:center; font-size:14px; margin:20px 0; }
+    .price-control { background:#fef3c7; border:2px solid #f59e0b; padding:16px; border-radius:12px; text-align:center; font-weight:600; color:#92400e; }
+    button {
+      width:100%; padding:18px; background:linear-gradient(135deg,var(--primary),#1d4ed8);
+      color:white; border:none; border-radius:12px; font-size:18px; font-weight:700; cursor:pointer;
+      transition:all 0.3s; margin-top:10px;
+    }
+    button:hover { transform:translateY(-2px); box-shadow:0 15px 30px rgba(59,130,246,0.4); }
+    button:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+    .note { font-size:13px; color:#64748b; text-align:center; margin-top:24px; line-height:1.6; }
+    .token-example { font-family:monospace; background:#1e293b; color:#60a5fa; padding:8px 12px; border-radius:8px; font-size:13px; word-break:break-all; }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>Vendi il Tuo Token al Tuo Prezzo</h1>
+    <p>Qualsiasi ERC-20 su Arbitrum / BSC<br><strong>Tu decidi quanti €/USD ricevere</strong></p>
+  </div>
+
+  <div class="body">
+
+    <div class="highlight">
+      <strong>Token di esempio già configurato:</strong><br>
+      <div class="token-example">0xeF3F5C1892A8d7A3304E4A15959E124402d69974</div>
+      <small>(Puoi cambiare con qualsiasi tuo token)</small>
+    </div>
+
+    <div class="price-control">
+      TU DECIDI IL PREZZO: inserisci sotto quanti Euro/Dollari vuoi ricevere
+    </div>
+
+    <label>Importo che vuoi RICEVERE (fiat)</label>
+    <input type="number" id="fiatAmount" placeholder="es. 5000" step="0.01" min="1" value="5000" />
+
+    <label>Valuta da ricevere</label>
+    <select id="fiatCurrency">
+      <option value="EUR">Euro (€) - SEPA</option>
+      <option value="USD">Dollaro ($) - ACH/SWIFT</option>
+      <option value="CHF">Franco Svizzero (CHF)</option>
+    </select>
+
+    <label>Il tuo token personalizzato (indirizzo contratto)</label>
+    <input type="text" id="tokenAddress" value="0xeF3F5C1892A8d7A3304E4A15959E124402d69974" />
+
+    <label>Rete</label>
+    <select id="network">
+      <option value="arbitrum">Arbitrum One</option>
+      <option value="bsc">BNB Smart Chain (BSC)</option>
+    </select>
+
+    <label>Connetti Wallet</label>
+    <div style="display:flex;gap:12px;margin-bottom:20px;">
+      <button id="connectBtn" style="flex:1;padding:14px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;">
+        Connetti MetaMask
+      </button>
+      <div id="walletStatus" style="flex:1;padding:14px;background:#ecfdf5;border:1px solid #86efac;border-radius:12px;text-align:center;display:none;">
+        Connesso
+      </div>
+    </div>
+
+    <button id="sellBtn" disabled>
+      VENDI AL MIO PREZZO → Mt Pelerin Bridge
+    </button>
+
+    <p class="note">
+      • Supporta <strong>qualsiasi token ERC-20</strong> (anche appena creato)<br>
+      • Il prezzo lo decidi <strong>TU</strong>: inserisci quanti €/$ vuoi ricevere<br>
+      • Mt Pelerin accetta il tuo prezzo grazie al parametro <code>fiatAmount</code><br>
+      • Nessun KYC fino a €15.000/giorno • Zero API key • 100% self-hosted
+    </p>
+  </div>
+</div>
+
+<script>
+  const chainIds = { arbitrum: 42161, bsc: 56 };
+  let userAccount = null;
+
+  // Connessione wallet
+  document.getElementById('connectBtn').addEventListener('click', async () => {
+    if (!window.ethereum) {
+      alert('Installa MetaMask!');
+      return;
+    }
+    try {
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const web3 = new Web3(window.ethereum);
+      const accounts = await web3.eth.getAccounts();
+      userAccount = accounts[0];
+
+      document.getElementById('connectBtn').style.display = 'none';
+      document.getElementById('walletStatus').style.display = 'block';
+      document.getElementById('walletStatus').innerHTML = `
+        Connesso<br>
+        <small style="font-family:monospace;">\( {userAccount.slice(0,8)}... \){userAccount.slice(-6)}</small>
+      `;
+      checkReady();
+    } catch (err) {
+      alert('Connessione rifiutata');
+    }
+  });
+
+  // Abilita bottone quando tutto è pronto
+  function checkReady() {
+    const ready = userAccount &&
+                  document.getElementById('fiatAmount').value > 0 &&
+                  document.getElementById('tokenAddress').value.length === 42;
+    document.getElementById('sellBtn').disabled = !ready;
+  }
+
+  ['fiatAmount', 'tokenAddress'].forEach(id => {
+    document.getElementById(id).addEventListener('input', checkReady);
+  });
+
+  // GENERA LINK MT PELERIN CON PREZZO FORZATO DA TE
+  document.getElementById('sellBtn').addEventListener('click', () => {
+    const fiatAmount = document.getElementById('fiatAmount').value;
+    const fiatCurrency = document.getElementById('fiatCurrency').value;
+    const tokenAddress = document.getElementById('tokenAddress').value.trim();
+    const network = document.getElementById('network').value;
+    const chainId = chainIds[network];
+
+    if (!/^0x[a-fA-F0-9]{40}$/.test(tokenAddress)) {
+      alert('Indirizzo token non valido');
+      return;
+    }
+
+    // PARAMETRO CHIAVE: fiatAmount= forza il valore fiat che TU vuoi ricevere
+    const url = `https://bridges.mtpelerin.com/?tab=sell&crypto=\( {tokenAddress}&network= \){chainId}&fiat=\( {fiatCurrency}&fiatAmount= \){fiatAmount}&mode=widget`;
+
+    // Popup ottimizzato (come il vero Mt Pelerin)
+    const popup = window.open(
+      url,
+      "mtpelerin_offramp",
+      "width=540,height=840,resizable=yes,scrollbars=yes"
+    );
+
+    if (!popup) {
+      alert('Popup bloccato! Abilita i popup per questo sito o usa il link diretto.');
+      window.open(url, '_blank');
+    }
+  });
+</script>
+
+</body>
+</html>
